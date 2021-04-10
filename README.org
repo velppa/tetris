@@ -1,0 +1,36 @@
+#+TITLE: shadow-cljs-template
+
+A simple template for my shadow-cljs experiments.
+
+* Install dependencies
+
+#+begin_src sh
+npm install
+#+end_src
+
+* Run REPL manually
+
+Run Shadow CLJS dev server (and REPL):
+
+#+begin_src sh
+npm run watch
+#+end_src
+
+In another terminal, recompile Tailwind CSS if it changes:
+
+#+begin_src sh
+npm run watch:css
+#+end_src
+
+* Run CIDER
+
+In Emacs run =cider-jack-in-cljs=, then select =shadow= and =:app=.
+
+* Deployment
+
+To deploy on to Github Pages to =gh-pages= branch, adjust origin url
+and run:
+
+#+begin_src sh
+make deploy
+#+end_src
