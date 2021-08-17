@@ -1,6 +1,4 @@
-#+TITLE: shadow-cljs-template
-
-A simple template for my shadow-cljs experiments.
+#+TITLE: Tetris
 
 * Install dependencies
 

@@ -1,52 +1,59 @@
 (ns main
-  (:require
-   [cljs.core.async :refer (chan put! <! go-loop)]
-   [reagent.core :as r]
-   [reagent.dom :as r.dom]
-   [taoensso.timbre :as timbre :refer-macros [info]]))
+  (:require [rum.core :as rum]
+            [odoyle.rules :as o]
+            [odoyle.rum :as orum]
+            [taoensso.timbre :as log]))
 
 
-(def state (r/atom {:clicked 0}))
+(defn click [state]
+  (-> state
+      (o/insert ::global ::event ::click)
+      o/fire-rules))
 
 
-(def event-queue (chan))
+(def rules
+  (o/ruleset
+    {::on-click
+     [:what
+      [::global ::event ::click]
+      [::global ::clicks clicks {:then false}]
+      :then
+      (o/insert! ::global ::clicks (inc clicks))]
+     ::get-clicks
+     [:what
+      [::global ::clicks clicks]]}))
 
 
-(defn mutate-state! [event payload]
-  (info "Event" event "with payload" payload)
-
-  (case event
-    :button-clicked
-    (swap! state update-in [:clicked] inc)
-
-    :reset
-    (reset! state {:clicked 0})
-
-    (info "Nothing to do for" event)))
-
-
-(go-loop [[event payload] (<! event-queue)]
-  (mutate-state! event payload)
-  (recur (<! event-queue)))
+(def components
+  (orum/ruleset
+    {click-counter
+     [:what
+      [::global ::clicks clicks]
+      :then
+      (let [*session (orum/prop)
+            *local (orum/atom 10)]
+        [:div
+         [:button {:on-click (fn [_]
+                               (swap! *session click)
+                               (swap! *local inc))}
+          (str "Clicked " clicks " " (if (= 1 clicks) "time" "times"))]
+         [:p (str "Local: " @*local)]])]}))
 
 
-(defn main-component []
-  [:div
-   [:h1 "This is a component"]
-   [:button.bg-blue-100.text-blue-600.px-4
-    {:on-click #(put! event-queue [:button-clicked])} "Click me"]
-   [:button.bg-green-100.text-green-600.px-4
-    {:on-click #(put! event-queue [:reset])} "Reset"]
-   [:pre (str @state)]])
+(def *session
+  (-> (reduce o/add-rule (o/->session) (concat rules components))
+      (o/insert ::global ::clicks 0)
+      o/fire-rules
+      atom))
 
 
-(defn mount [c]
-  (r.dom/render [c] (.getElementById js/document "app")))
+(defn mount []
+  (rum/mount (click-counter *session) (js/document.querySelector "#app")))
 
-(defn reload! []
-  (mount main-component)
-  (print "Hello reload!"))
+(o/query-all @*session ::on-click)
 
 (defn main! []
-  (mount main-component)
-  (print "Hello Main"))
+  (mount))
+
+(defn reload! []
+  (mount))

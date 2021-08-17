@@ -1,9 +1,15 @@
 NODE_ENV=development
 build-css:
-	NODE_ENV=$(NODE_ENV) npm run tw
+	NODE_ENV=$(NODE_ENV) tailwind build tw/style.css -- -o target/css/main.css
 
 build-js:
 	npx shadow-cljs release app
+
+watch:
+	npx shadow-cljs watch app
+
+watch-css:
+	npx onchange 'tw/*css' -- npm run tw
 
 DATE=$(shell date)
 ORIGIN=origin
