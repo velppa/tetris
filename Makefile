@@ -1,6 +1,6 @@
 NODE_ENV=development
 build-css:
-	NODE_ENV=$(NODE_ENV) tailwind build tw/style.css -- -o target/css/main.css
+	NODE_ENV=$(NODE_ENV) npx tailwindcss -i tw/style.css -o target/css/main.css
 
 build-js:
 	npx shadow-cljs release app

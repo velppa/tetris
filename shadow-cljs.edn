@@ -5,8 +5,8 @@
  :dependencies
  [[com.taoensso/timbre "5.1.2"]
   [rum "0.12.6"]
-  [net.sekao/odoyle-rules "0.8.0"]
-  [net.sekao/odoyle-rum "0.8.0"]]
+  [net.sekao/odoyle-rules "0.11.0"]
+  [net.sekao/odoyle-rum "0.11.0"]]
 
  :dev-http {8080 "target/"}
  :builds {:app {:output-dir "target/"
