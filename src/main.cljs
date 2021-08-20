@@ -31,28 +31,29 @@
 
 
 (def css
-  {:button #{"justify-center" "p-3"
+  {:button #{"justify-center" "p-4"
              "m-4" "border"
              "border-transparent" "text-base"
              "font-medium" "rounded-md"
              "text-indigo-700" "bg-indigo-100"
-             "hover:bg-indigo-200" "md:py-4"
-             "md:text-lg" "md:px-10"}
-   :cell #{"h-12" "rounded-md"
-           ;; "w-4" "h-4"
-           "flex" "items-center"
-           "justify-center" "text-2xl"
-           "font-extrabold"}
+             "hover:bg-indigo-200"
+             "md:text-lg" "md:p-2"}
+   :cell #{"w-8" "h-8"
+           "flex"}
    :colors #{"bg-red-800" "bg-green-800" "bg-blue-800" "bg-pink-800"}})
 
 
 (defn random-color [] (rand-nth (vec (:colors css))))
 
 
-(def grid-columns 10)
+(def grid-columns 12)
 
 
-(def grid-rows 9)
+(def grid-rows 19)
+
+
+(defn shape-height [{:keys [fields width]}]
+  (/ (count fields) width))
 
 
 (defn row-col [idx width]
@@ -107,100 +108,60 @@
   (rand-int (- grid-columns width 1)))
 
 
-(defn grid-with-new-shape [grid {:keys [fields width color]} {:keys [row col]}]
-  (reduce
-   (fn [acc [idx bit]]
-     (let [[r c]  (row-col idx width)
-           cell-index (+ c col (* (+ r row) grid-columns))
-           current    (get grid cell-index)]
-       (when (and (nil? current) acc)
-         (if (= bit 0)
-           acc
-           (assoc acc cell-index {:color color})))))
-   grid (with-index fields)))
+(defn grid-with-shape
+  "Inserts SHAPE into GRID in the top-left corner at OFFSET.
 
-
-(defn cell-swap [grid idx1 idx2]
-  (let [v1 (get grid idx1)
-        v2 (get grid idx2)]
-    (-> grid
-        (assoc idx1 v2)
-        (assoc idx2 v1))))
-
-
-(defn move-shape-down [grid {:keys [width fields]} {:keys [row col]}]
-  (let [new-grid
-        (reduce
-         (fn [acc [idx bit]]
-           ;; (prn acc idx bit)
-           (when acc
-             (let [[r c] (row-col idx width)
-                   old-index (+ col c (* (+ r row) grid-columns))
-                   new-index (+ old-index grid-columns)
-                   candidate (get acc new-index :out-of-grid)]
-               (when (or (nil? candidate) (= bit 0))
-                 (if (= bit 1)
-                   (cell-swap acc new-index old-index)
-                   acc)))))
-         grid (reverse (with-index fields)))]
-    {:grid new-grid
-     :offset {:row ((if new-grid inc identity) row)
-              :col col}}))
-
-
-(defn move-shape-left [grid {:keys [width fields]} {:keys [row col]}]
-  (let [new-grid
-        (reduce
-         (fn [acc [idx bit]]
-           (when acc
-             (let [[r c] (row-col idx width)
-                   old-index (+ col c (* (+ r row) grid-columns))
-                   new-col (dec (+ col c))
-                   new-index (+ new-col (* (+ r row) grid-columns))
-                   candidate (get acc new-index :out-of-grid)]
-               (when (and (<= 0 new-col) (or (nil? candidate) (= bit 0)))
-                 (if (= bit 1)
-                   (cell-swap acc new-index old-index)
-                   acc)))))
-         grid (with-index fields))]
-    {:grid (or new-grid grid)
-     :offset {:row row
-              :col ((if new-grid dec identity) col)}}))
-
-
-(defn move-shape-right [grid {:keys [width fields]} {:keys [row col]}]
-  (let [new-grid
-        (reduce
-         (fn [acc [idx bit]]
-           (when acc
-             (let [[r c] (row-col idx width)
-                   old-index (+ col c (* (+ r row) grid-columns))
-                   new-col (inc (+ col c))
-                   new-index (+ new-col (* (+ r row) grid-columns))
-                   candidate (get acc new-index :out-of-grid)]
-               (when (and (< new-col grid-columns) (or (nil? candidate) (= bit 0)))
-                 (if (= bit 1)
-                   (cell-swap acc new-index old-index)
-                   acc)))))
-         grid (reverse (with-index fields)))]
-    {:grid (or new-grid grid)
-     :offset {:row row
-              :col ((if new-grid inc identity) col)}}))
+  If any of cells is alredy occupied or shape goes beyound the grid,
+  returns nil."
+  [grid {:keys [fields width color] :as shape} {:keys [row col] :as offset}]
+  (when (and (<= 0 row)
+             (<= 0 col)
+             (<= (+ col width) grid-columns)
+             (<= (+ row (shape-height shape)) grid-rows))
+      (reduce
+       (fn [acc [idx bit]]
+         (let [[r c]      (row-col idx width)
+               cell-index (+ c col (* (+ r row) grid-columns))
+               current    (get grid cell-index)]
+           (when (and (or (nil? current) (= bit 0)) acc)
+             (if (= bit 0)
+               acc
+               (assoc acc cell-index {:color color})))))
+       grid (with-index fields))))
 
 
 (defn grid-without-shape [grid {:keys [width fields]} {:keys [row col]}]
   (reduce
-   (fn [acc [idx _]]
+   (fn [acc [idx bit]]
      (let [[r c] (row-col idx width)
            index (+ c col (* (+ r row) grid-columns))]
-       (assoc acc index nil)))
+       (if (= bit 0) acc (assoc acc index nil))))
    grid (with-index fields)))
+
+
+(defn inc-row [{:keys [row col]}] {:row (inc row) :col col})
+(defn inc-col [{:keys [row col]}] {:row row :col (inc col)})
+(defn dec-col [{:keys [row col]}] {:row row :col (dec col)})
+
+
+(defn move-shape [mover grid shape offset]
+  (let [new-grid (-> grid
+                     (grid-without-shape shape offset)
+                     (grid-with-shape shape (mover offset)))]
+    {:grid (or new-grid grid)
+     :offset ((if new-grid mover identity) offset)}))
+
+
+(def move-shape-right (partial move-shape inc-col))
+(def move-shape-left (partial move-shape dec-col))
+(def move-shape-down (partial move-shape inc-row))
+
 
 
 (defn rotate-shape [old-grid shape offset]
   (let [new-shape (transpose shape)
         grid (grid-without-shape old-grid shape offset)
-        new-grid (grid-with-new-shape grid new-shape offset)]
+        new-grid (grid-with-shape grid new-shape offset)]
     {:grid  (or new-grid old-grid)
      :shape (if new-grid new-shape shape)}))
 
@@ -208,7 +169,7 @@
 (comment
   (let [shape (into {:color (random-color)} (first shapes))
         offset {:row 0 :col 0}
-        grid (grid-with-new-shape (initial-grid) shape offset)]
+        grid (grid-with-shape (initial-grid) shape offset)]
     (rotate-shape grid shape offset)))
 
 
@@ -225,11 +186,11 @@
      (= status :active)
      :then
      (let [{new-grid :grid offset :offset} (move-shape-down grid shape offset)]
-       (if new-grid
+       (if (not= new-grid grid)
          (o/insert! ::global {::grid new-grid
                               ::offset offset
                               ::message "Down"})
-         (o/insert! ::global ::event ::add)))]
+         (o/insert! ::global ::event ::full-row)))]
 
     ::on-left
     [:what
@@ -245,6 +206,24 @@
        (o/insert! ::global {::grid    new-grid
                             ::offset  offset
                             ::message "Left"}))]
+
+    ::on-full-row
+    [:what
+     [::global ::event ::full-row]
+     [::global ::grid grid {:then false}]
+     :then
+     (when (->> grid
+                (partition grid-columns)
+                (map #(every? some? %))
+                (some true?))
+       (let [rows       (partition grid-columns grid)
+             with-nils  (filter #(some nil? %) rows)
+             empty-row  (repeat grid-columns nil)
+             empty-rows (repeat (- grid-rows (count with-nils)) empty-row)
+             new-grid   (vec (flatten (concat empty-rows with-nils)))]
+         (o/insert! ::global {::grid new-grid
+                              ::message (str "Removed " (count empty-rows) " rows")})))
+     (o/insert! ::global ::event ::add)]
 
     ::on-right
     [:what
@@ -282,7 +261,7 @@
      :then
      (let [shape (random-shape)
            offset {:row 0 :col (random-offset shape)}
-           grid (grid-with-new-shape (initial-grid) shape offset)]
+           grid (grid-with-shape (initial-grid) shape offset)]
        (o/insert! ::global {::grid grid
                             ::offset offset
                             ::shape shape
@@ -299,20 +278,25 @@
      :then
      (let [shape (random-shape)
            offset {:row 0 :col (random-offset shape)}
-           new-grid (grid-with-new-shape grid shape offset)]
+           new-grid (grid-with-shape grid shape offset)]
        (o/insert! ::global
-                  (if new-grid {::grid    new-grid
-                                ::offset  offset
-                                ::shape   shape
-                                ::message "Added"}
-                      {::message "Game over"
-                       ::status :finished})))]
+                  (if new-grid
+                    {::grid    new-grid
+                     ::offset  offset
+                     ::shape   shape
+                     ::message "Added"}
+                    {::message "Game over"
+                     ::status :finished})))]
 
     ::get-offset
     [:what
      [::global ::offset offset]]
 
-    ::get-last-event
+    ::get-grid
+    [:what
+     [::global ::grid grid]]
+
+    ::get-event
     [:what
      [::global ::event event]]}))
 
@@ -343,8 +327,7 @@
         [:button {:class (:button css) :on-click (handler ::down)} "Down"]
         [:button {:class (:button css) :on-click (handler ::rotate)} "Rotate"]
         [:button {:class (:button css) :on-click (handler ::left)} "Left"]
-        [:button {:class (:button css) :on-click (handler ::right)} "Right"]
-        [:button {:class (:button css) :on-click (handler ::add)} "Add"]])]
+        [:button {:class (:button css) :on-click (handler ::right)} "Right"]])]
 
     heading
     [:then
@@ -355,12 +338,12 @@
      [::global ::grid grid]
      :then
      [:div {:class "rounded-t-xl bg-gradient-to-r from-green-50 to-red-50 bg-white p-8"}
-      [:div {:class (str "grid gap-2 grid-cols-" grid-columns)}
+      [:div {:class (str "grid gap-0 grid-cols-" grid-columns)}
        (map-indexed
         (fn [i cell]
           [:div {:key (str "cell-" i)
                  :class (conj (:cell css) (or (:color cell) "bg-gray-100"))}
-           i])
+           ""])
         grid)]]]}))
 
 
@@ -383,7 +366,13 @@
 (comment
   (o/query-all @*session ::get-last-event)
 
-  (o/query-all @*session)
+  (o/query-all @*session ::get-grid)
+
+  (->> (o/query-all @*session ::get-grid)
+       first :grid
+       (partition grid-columns)
+       (map #(every? some? %))
+       (some true?))
 
   (map (fn [{:keys [fields width]}]
          (/ (count fields) width)) shapes)
